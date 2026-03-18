@@ -112,7 +112,9 @@ const std::map<std::string, std::string>& tableQueries() {
         {"rooms", "SELECT raum_id, gebaeude_id, raum_nummer, bezeichnung FROM raum ORDER BY raum_id"},
         {"roles", "SELECT rolle_id, name, beschreibung FROM rolle ORDER BY rolle_id"},
         {"role-permissions", "SELECT rolle_id, berechtigung_id FROM rollen_berechtigungen ORDER BY rolle_id, berechtigung_id"},
-        {"sensor-data", "SELECT sensordaten_id, geraet_id, zeitstempel, stromverbrauch, status FROM sensordaten ORDER BY sensordaten_id"}
+        {"sensor-data", "SELECT sensordaten_id, geraet_id, zeitstempel, stromverbrauch, status FROM sensordaten ORDER BY sensordaten_id"},
+        {"all-topics", "SELECT * FROM mqtt_data ORDER BY id"},
+        {"pvSystems", "SELECT * FROM mqtt_data WHERE topic LIKE '%/pv%'"}
     };
 
     return queries;
@@ -172,6 +174,27 @@ bool Database::createUser(const std::string& name,
     }
 
     return true;
+}
+
+//Nicht eingebunden
+bool Database::getRoomDevices(const std::string& roomId) {
+    MYSQL* connection = getConnection();
+    const std::string safeRoomId = escapeSql(connection, roomId);
+    const std::string query =
+        "SELECT geraet_id, name, hersteller FROM geraet WHERE raum_id='" +
+        safeRoomId + "' ORDER BY geraet_id";
+
+    if (mysql_query(connection, query.c_str()) != 0) {
+        std::cerr << "Query failed: " << mysql_error(connection) << std::endl;
+        return false;
+    }
+
+    MYSQL_RES* rawResult = mysql_store_result(connection);
+    if (rawResult == nullptr) {
+        std::cerr << "Failed to store result: " << mysql_error(connection) << std::endl;
+        return false;
+    }
+
 }
 
 bool Database::userExistsByEmail(const std::string& email) {

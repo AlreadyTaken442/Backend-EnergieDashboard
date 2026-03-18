@@ -141,6 +141,10 @@ private:
                 controller.handleUpdateUser(req_, *res);
             } else if (req_.method() == http::verb::delete_ && target == "/users") {
                 controller.handleDeleteUser(req_, *res);
+            } else if (req_.method() == http::verb::get && target == "/all-topics") {
+                controller.handleListResource("all-topics", *res); 
+            } else if (req_.method() == http::verb::get && target == "/pvSystems") {
+                controller.handleListResource("pvSystems", *res);
             } else {
                 res->result(http::status::not_found);
                 res->set(http::field::content_type, "application/json");

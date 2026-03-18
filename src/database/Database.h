@@ -34,6 +34,7 @@ public:
                     const std::string& passwordHash,
                     bool active);
     bool deleteUser(int id);
+    bool getRoomDevices(const std::string& roomId);
 
     std::optional<std::string> getTableRowsAsJson(const std::string& tableName);
 
