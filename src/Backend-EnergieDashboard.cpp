@@ -109,48 +109,43 @@ private:
 
             const std::string target = std::string(req_.target());
 
-            if (req_.method() == http::verb::get && (target == "/" || target == "/health")) {
-                res->result(http::status::ok);
-                res->set(http::field::content_type, "application/json");
-                res->body() = "{\"status\":\"ok\"}";
-                res->prepare_payload();
-            } else if (req_.method() == http::verb::post && target == "/auth/register") {
-                controller.handleCreateUser(req_, *res);
+            if (req_.method() == http::verb::post && target == "/auth/register") {
+                controller.handleCreateUser(req_, res);
             } else if (req_.method() == http::verb::post && target == "/auth/login") {
-                controller.handleLogin(req_, *res);
+                controller.handleLogin(req_, res);
             } else if (req_.method() == http::verb::get && target == "/users") {
-                controller.handleListResource("users", *res);
+                controller.handleListResource("users", res);
             } else if (req_.method() == http::verb::get && target == "/notifications") {
-                controller.handleListResource("notifications", *res);
+                controller.handleListResource("notifications", res);
             } else if (req_.method() == http::verb::get && target == "/user-roles") {
-                controller.handleListResource("user-roles", *res);
+                controller.handleListResource("user-roles", res);
             } else if (req_.method() == http::verb::get && target == "/permissions") {
-                controller.handleListResource("permissions", *res);
+                controller.handleListResource("permissions", res);
             } else if (req_.method() == http::verb::get && target == "/buildings") {
-                controller.handleListResource("buildings", *res);
+                controller.handleListResource("buildings", res);
             } else if (req_.method() == http::verb::get && target == "/devices") {
-                controller.handleListResource("devices", *res);
+                controller.handleListResource("devices", res);
             } else if (req_.method() == http::verb::get && target == "/device-types") {
-                controller.handleListResource("device-types", *res);
+                controller.handleListResource("device-types", res);
             } else if (req_.method() == http::verb::get && target == "/usage-statistics") {
-                controller.handleListResource("usage-statistics", *res);
+                controller.handleListResource("usage-statistics", res);
             } else if (req_.method() == http::verb::get && target == "/rooms") {
-                controller.handleListResource("rooms", *res);
+                controller.handleListResource("rooms", res);
             } else if (req_.method() == http::verb::get && target == "/roles") {
-                controller.handleListResource("roles", *res);
+                controller.handleListResource("roles", res);
             } else if (req_.method() == http::verb::get && target == "/role-permissions") {
-                controller.handleListResource("role-permissions", *res);
+                controller.handleListResource("role-permissions", res);
             } else if (req_.method() == http::verb::get && target == "/sensor-data") {
-                controller.handleListResource("sensor-data", *res);
+                controller.handleListResource("sensor-data", res);
             } else if (req_.method() == http::verb::put && target == "/users") {
-                controller.handleUpdateUser(req_, *res);
+                controller.handleUpdateUser(req_, res);
             } else if (req_.method() == http::verb::delete_ && target == "/users") {
-                controller.handleDeleteUser(req_, *res);
+                controller.handleDeleteUser(req_, res);
             } else {
-                res->result(http::status::not_found);
-                res->set(http::field::content_type, "application/json");
-                res->body() = "{\"error\":\"route not found\"}";
-                res->prepare_payload();
+                res.result(http::status::not_found);
+                res.set(http::field::content_type, "application/json");
+                res.body() = "{\"error\":\"route not found\"}";
+                res.prepare_payload();
             }
 
             // Antwort an den Client senden
