@@ -55,9 +55,10 @@ public:
 
 private:
     void do_accept() {
+        auto self = shared_from_this();
         acceptor_.async_accept(
             net::make_strand(ioc_),
-            [this](beast::error_code ec, tcp::socket socket) {
+            [self, this](beast::error_code ec, tcp::socket socket) {
                 if (!ec) {
                     // Erstelle eine Session für die eingehende Verbindung
                     std::make_shared<Session>(std::move(socket), db_)->run();
@@ -90,32 +91,78 @@ private:
                     socket_.shutdown(tcp::socket::shutdown_send, ignored);
                     return;
                 }
+                if (ec) {
+                    std::cerr << "Read failed: " << ec.message() << std::endl;
+                    return;
+                }
                 // Handle the request (CRUD operations based on the HTTP method)
                 handle_request();
             });
         }
 
         void handle_request() {
-            http::response<http::string_body> res{http::status::ok, req_.version()};
+            auto res = std::make_shared<http::response<http::string_body>>(
+                http::status::ok,
+                req_.version());
 
             HttpController controller(db_);  // Controller mit CRUD-Operationen
 
-            // Handle requests based on HTTP method (GET, POST, PUT, DELETE)
-            if (req_.method() == http::verb::get) {
-                controller.handleGetUsers(req_, res);
-            } else if (req_.method() == http::verb::post) {
-                controller.handleCreateUser(req_, res);
-            } else if (req_.method() == http::verb::put) {
-                controller.handleUpdateUser(req_, res);
-            } else if (req_.method() == http::verb::delete_) {
-                controller.handleDeleteUser(req_, res);
+            const std::string target = std::string(req_.target());
+
+            if (req_.method() == http::verb::get && (target == "/" || target == "/health")) {
+                res->result(http::status::ok);
+                res->set(http::field::content_type, "application/json");
+                res->body() = "{\"status\":\"ok\"}";
+                res->prepare_payload();
+            } else if (req_.method() == http::verb::post && target == "/auth/register") {
+                controller.handleCreateUser(req_, *res);
+            } else if (req_.method() == http::verb::post && target == "/auth/login") {
+                controller.handleLogin(req_, *res);
+            } else if (req_.method() == http::verb::get && target == "/users") {
+                controller.handleListResource("users", *res);
+            } else if (req_.method() == http::verb::get && target == "/notifications") {
+                controller.handleListResource("notifications", *res);
+            } else if (req_.method() == http::verb::get && target == "/user-roles") {
+                controller.handleListResource("user-roles", *res);
+            } else if (req_.method() == http::verb::get && target == "/permissions") {
+                controller.handleListResource("permissions", *res);
+            } else if (req_.method() == http::verb::get && target == "/buildings") {
+                controller.handleListResource("buildings", *res);
+            } else if (req_.method() == http::verb::get && target == "/devices") {
+                controller.handleListResource("devices", *res);
+            } else if (req_.method() == http::verb::get && target == "/device-types") {
+                controller.handleListResource("device-types", *res);
+            } else if (req_.method() == http::verb::get && target == "/usage-statistics") {
+                controller.handleListResource("usage-statistics", *res);
+            } else if (req_.method() == http::verb::get && target == "/rooms") {
+                controller.handleListResource("rooms", *res);
+            } else if (req_.method() == http::verb::get && target == "/roles") {
+                controller.handleListResource("roles", *res);
+            } else if (req_.method() == http::verb::get && target == "/role-permissions") {
+                controller.handleListResource("role-permissions", *res);
+            } else if (req_.method() == http::verb::get && target == "/sensor-data") {
+                controller.handleListResource("sensor-data", *res);
+            } else if (req_.method() == http::verb::put && target == "/users") {
+                controller.handleUpdateUser(req_, *res);
+            } else if (req_.method() == http::verb::delete_ && target == "/users") {
+                controller.handleDeleteUser(req_, *res);
+            } else {
+                res->result(http::status::not_found);
+                res->set(http::field::content_type, "application/json");
+                res->body() = "{\"error\":\"route not found\"}";
+                res->prepare_payload();
             }
 
             // Antwort an den Client senden
-            http::async_write(socket_, res, [this](beast::error_code ec, std::size_t) {
+            auto self(shared_from_this());
+            http::async_write(socket_, *res, [this, self, res](beast::error_code ec, std::size_t) {
                 if (ec) {
                     std::cerr << "Write failed: " << ec.message() << std::endl;
+                    return;
                 }
+
+                beast::error_code ignored;
+                socket_.shutdown(tcp::socket::shutdown_send, ignored);
             });
         }
     };
@@ -132,7 +179,8 @@ int main() {
         Database db("127.0.0.1", "dashboard_user", "MeinSicheresPasswort", "energiedashboard");
 
         // Listener für den HTTP-Server starten
-        std::make_shared<Listener>(ioc, tcp::endpoint{address, port}, db)->run();
+        auto listener = std::make_shared<Listener>(ioc, tcp::endpoint{address, port}, db);
+        listener->run();
 
         ioc.run();  // Event Loop starten, um Anfragen zu bearbeiten
     } catch (const std::exception& e) {
