@@ -15,7 +15,7 @@ namespace http = beast::http;
 namespace net = boost::asio;
 using tcp = net::ip::tcp;
 
-class HttpServer {
+class HttpServer : public std::enable_shared_from_this<HttpServer> {
 public:
     HttpServer(net::io_context& ioc, tcp::endpoint endpoint, Database& db)
         : ioc_(ioc), acceptor_(net::make_strand(ioc)), controller_(db) {
@@ -53,9 +53,10 @@ public:
 
 private:
     void do_accept() {
+        auto self = shared_from_this();
         acceptor_.async_accept(
             net::make_strand(ioc_),
-            [this](beast::error_code ec, tcp::socket socket) {
+            [self, this](beast::error_code ec, tcp::socket socket) {
                 if (!ec) {
                     std::make_shared<Session>(std::move(socket), controller_)->run();
                 }
@@ -80,6 +81,10 @@ private:
                 if (ec == http::error::end_of_stream) {
                     beast::error_code ignored;
                     socket_.shutdown(tcp::socket::shutdown_send, ignored);
+                    return;
+                }
+                if (ec) {
+                    std::cerr << "Read failed: " << ec.message() << std::endl;
                     return;
                 }
 
@@ -132,10 +137,15 @@ private:
                 res.prepare_payload();
             }
 
-            http::async_write(socket_, res, [this](beast::error_code ec, std::size_t) {
+            auto self(shared_from_this());
+            http::async_write(socket_, *res, [this, self, res](beast::error_code ec, std::size_t) {
                 if (ec) {
                     std::cerr << "Write failed: " << ec.message() << std::endl;
+                    return;
                 }
+
+                beast::error_code ignored;
+                socket_.shutdown(tcp::socket::shutdown_send, ignored);
             });
         }
 

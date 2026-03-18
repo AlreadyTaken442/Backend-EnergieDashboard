@@ -55,9 +55,10 @@ public:
 
 private:
     void do_accept() {
+        auto self = shared_from_this();
         acceptor_.async_accept(
             net::make_strand(ioc_),
-            [this](beast::error_code ec, tcp::socket socket) {
+            [self, this](beast::error_code ec, tcp::socket socket) {
                 if (!ec) {
                     // Erstelle eine Session für die eingehende Verbindung
                     std::make_shared<Session>(std::move(socket), db_)->run();
@@ -90,13 +91,19 @@ private:
                     socket_.shutdown(tcp::socket::shutdown_send, ignored);
                     return;
                 }
+                if (ec) {
+                    std::cerr << "Read failed: " << ec.message() << std::endl;
+                    return;
+                }
                 // Handle the request (CRUD operations based on the HTTP method)
                 handle_request();
             });
         }
 
         void handle_request() {
-            http::response<http::string_body> res{http::status::ok, req_.version()};
+            auto res = std::make_shared<http::response<http::string_body>>(
+                http::status::ok,
+                req_.version());
 
             HttpController controller(db_);  // Controller mit CRUD-Operationen
 
@@ -142,10 +149,15 @@ private:
             }
 
             // Antwort an den Client senden
-            http::async_write(socket_, res, [this](beast::error_code ec, std::size_t) {
+            auto self(shared_from_this());
+            http::async_write(socket_, *res, [this, self, res](beast::error_code ec, std::size_t) {
                 if (ec) {
                     std::cerr << "Write failed: " << ec.message() << std::endl;
+                    return;
                 }
+
+                beast::error_code ignored;
+                socket_.shutdown(tcp::socket::shutdown_send, ignored);
             });
         }
     };
@@ -162,7 +174,8 @@ int main() {
         Database db("127.0.0.1", "dashboard_user", "MeinSicheresPasswort", "energiedashboard");
 
         // Listener für den HTTP-Server starten
-        std::make_shared<Listener>(ioc, tcp::endpoint{address, port}, db)->run();
+        auto listener = std::make_shared<Listener>(ioc, tcp::endpoint{address, port}, db);
+        listener->run();
 
         ioc.run();  // Event Loop starten, um Anfragen zu bearbeiten
     } catch (const std::exception& e) {

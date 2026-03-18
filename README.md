@@ -3,6 +3,11 @@ API-Backend | saves MQTT Data and sends when requestet
 
 ## Aktueller API-Startpunkt
 
+### Verbindungs-/Health-Check
+
+- `GET /`
+- `GET /health`
+
 ### Auth
 
 - `POST /auth/register` mit JSON `{ "name": "...", "email": "...", "password": "..." }`
