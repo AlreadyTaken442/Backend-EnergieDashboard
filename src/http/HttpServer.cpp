@@ -15,7 +15,7 @@ namespace http = beast::http;
 namespace net = boost::asio;
 using tcp = net::ip::tcp;
 
-class HttpServer {
+class HttpServer : public std::enable_shared_from_this<HttpServer> {
 public:
     HttpServer(net::io_context& ioc, tcp::endpoint endpoint, Database& db)
         : ioc_(ioc), acceptor_(net::make_strand(ioc)), controller_(db) {
@@ -53,9 +53,10 @@ public:
 
 private:
     void do_accept() {
+        auto self = shared_from_this();
         acceptor_.async_accept(
             net::make_strand(ioc_),
-            [this](beast::error_code ec, tcp::socket socket) {
+            [self, this](beast::error_code ec, tcp::socket socket) {
                 if (!ec) {
                     std::make_shared<Session>(std::move(socket), controller_)->run();
                 }
@@ -82,6 +83,10 @@ private:
                     socket_.shutdown(tcp::socket::shutdown_send, ignored);
                     return;
                 }
+                if (ec) {
+                    std::cerr << "Read failed: " << ec.message() << std::endl;
+                    return;
+                }
 
                 // Verarbeite die Anfrage und sende die Antwort
                 handle_request();
@@ -89,22 +94,65 @@ private:
         }
 
         void handle_request() {
-            http::response<http::string_body> res{http::status::ok, request_.version()};
+            auto res = std::make_shared<http::response<http::string_body>>(
+                http::status::ok,
+                request_.version());
 
-            if (request_.method() == http::verb::get) {
-                controller_.handleGetUsers(request_, res);
-            } else if (request_.method() == http::verb::post) {
-                controller_.handleCreateUser(request_, res);
-            } else if (request_.method() == http::verb::put) {
-                controller_.handleUpdateUser(request_, res);
-            } else if (request_.method() == http::verb::delete_) {
-                controller_.handleDeleteUser(request_, res);
+            const std::string target = std::string(request_.target());
+
+            if (request_.method() == http::verb::get && (target == "/" || target == "/health")) {
+                res->result(http::status::ok);
+                res->set(http::field::content_type, "application/json");
+                res->body() = "{\"status\":\"ok\"}";
+                res->prepare_payload();
+            } else if (request_.method() == http::verb::post && target == "/auth/register") {
+                controller_.handleCreateUser(request_, *res);
+            } else if (request_.method() == http::verb::post && target == "/auth/login") {
+                controller_.handleLogin(request_, *res);
+            } else if (request_.method() == http::verb::get && target == "/users") {
+                controller_.handleListResource("users", *res);
+            } else if (request_.method() == http::verb::get && target == "/notifications") {
+                controller_.handleListResource("notifications", *res);
+            } else if (request_.method() == http::verb::get && target == "/user-roles") {
+                controller_.handleListResource("user-roles", *res);
+            } else if (request_.method() == http::verb::get && target == "/permissions") {
+                controller_.handleListResource("permissions", *res);
+            } else if (request_.method() == http::verb::get && target == "/buildings") {
+                controller_.handleListResource("buildings", *res);
+            } else if (request_.method() == http::verb::get && target == "/devices") {
+                controller_.handleListResource("devices", *res);
+            } else if (request_.method() == http::verb::get && target == "/device-types") {
+                controller_.handleListResource("device-types", *res);
+            } else if (request_.method() == http::verb::get && target == "/usage-statistics") {
+                controller_.handleListResource("usage-statistics", *res);
+            } else if (request_.method() == http::verb::get && target == "/rooms") {
+                controller_.handleListResource("rooms", *res);
+            } else if (request_.method() == http::verb::get && target == "/roles") {
+                controller_.handleListResource("roles", *res);
+            } else if (request_.method() == http::verb::get && target == "/role-permissions") {
+                controller_.handleListResource("role-permissions", *res);
+            } else if (request_.method() == http::verb::get && target == "/sensor-data") {
+                controller_.handleListResource("sensor-data", *res);
+            } else if (request_.method() == http::verb::put && target == "/users") {
+                controller_.handleUpdateUser(request_, *res);
+            } else if (request_.method() == http::verb::delete_ && target == "/users") {
+                controller_.handleDeleteUser(request_, *res);
+            } else {
+                res->result(http::status::not_found);
+                res->set(http::field::content_type, "application/json");
+                res->body() = "{\"error\":\"route not found\"}";
+                res->prepare_payload();
             }
 
-            http::async_write(socket_, res, [this](beast::error_code ec, std::size_t) {
+            auto self(shared_from_this());
+            http::async_write(socket_, *res, [this, self, res](beast::error_code ec, std::size_t) {
                 if (ec) {
                     std::cerr << "Write failed: " << ec.message() << std::endl;
+                    return;
                 }
+
+                beast::error_code ignored;
+                socket_.shutdown(tcp::socket::shutdown_send, ignored);
             });
         }
 
