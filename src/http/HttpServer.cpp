@@ -91,14 +91,45 @@ private:
         void handle_request() {
             http::response<http::string_body> res{http::status::ok, request_.version()};
 
-            if (request_.method() == http::verb::get) {
-                controller_.handleGetUsers(request_, res);
-            } else if (request_.method() == http::verb::post) {
+            const std::string target = std::string(request_.target());
+
+            if (request_.method() == http::verb::post && target == "/auth/register") {
                 controller_.handleCreateUser(request_, res);
-            } else if (request_.method() == http::verb::put) {
+            } else if (request_.method() == http::verb::post && target == "/auth/login") {
+                controller_.handleLogin(request_, res);
+            } else if (request_.method() == http::verb::get && target == "/users") {
+                controller_.handleListResource("users", res);
+            } else if (request_.method() == http::verb::get && target == "/notifications") {
+                controller_.handleListResource("notifications", res);
+            } else if (request_.method() == http::verb::get && target == "/user-roles") {
+                controller_.handleListResource("user-roles", res);
+            } else if (request_.method() == http::verb::get && target == "/permissions") {
+                controller_.handleListResource("permissions", res);
+            } else if (request_.method() == http::verb::get && target == "/buildings") {
+                controller_.handleListResource("buildings", res);
+            } else if (request_.method() == http::verb::get && target == "/devices") {
+                controller_.handleListResource("devices", res);
+            } else if (request_.method() == http::verb::get && target == "/device-types") {
+                controller_.handleListResource("device-types", res);
+            } else if (request_.method() == http::verb::get && target == "/usage-statistics") {
+                controller_.handleListResource("usage-statistics", res);
+            } else if (request_.method() == http::verb::get && target == "/rooms") {
+                controller_.handleListResource("rooms", res);
+            } else if (request_.method() == http::verb::get && target == "/roles") {
+                controller_.handleListResource("roles", res);
+            } else if (request_.method() == http::verb::get && target == "/role-permissions") {
+                controller_.handleListResource("role-permissions", res);
+            } else if (request_.method() == http::verb::get && target == "/sensor-data") {
+                controller_.handleListResource("sensor-data", res);
+            } else if (request_.method() == http::verb::put && target == "/users") {
                 controller_.handleUpdateUser(request_, res);
-            } else if (request_.method() == http::verb::delete_) {
+            } else if (request_.method() == http::verb::delete_ && target == "/users") {
                 controller_.handleDeleteUser(request_, res);
+            } else {
+                res.result(http::status::not_found);
+                res.set(http::field::content_type, "application/json");
+                res.body() = "{\"error\":\"route not found\"}";
+                res.prepare_payload();
             }
 
             http::async_write(socket_, res, [this](beast::error_code ec, std::size_t) {

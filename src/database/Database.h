@@ -1,31 +1,41 @@
 #pragma once
 
 #include <mysql/mysql.h>
+
+#include <optional>
 #include <string>
+
+struct UserAuthRecord {
+    int userId;
+    std::string name;
+    std::string email;
+    std::string passwordHash;
+    bool active;
+};
 
 class Database {
 public:
-    // Constructor und Destructor
     Database(const std::string& host,
              const std::string& user,
              const std::string& pass,
              const std::string& dbname);
     ~Database();
 
-    // Connection Management
     MYSQL* getConnection();
 
-    // User (Benutzer) CRUD Operations
-    void createUser(const std::string& username, const std::string& password);
-    void getUsers();
-    void updateUser(int id, const std::string& username, const std::string& password);
-    void deleteUser(int id);
+    bool createUser(const std::string& name,
+                    const std::string& email,
+                    const std::string& passwordHash);
+    bool userExistsByEmail(const std::string& email);
+    std::optional<UserAuthRecord> getUserAuthByEmail(const std::string& email);
+    bool updateUser(int id,
+                    const std::string& name,
+                    const std::string& email,
+                    const std::string& passwordHash,
+                    bool active);
+    bool deleteUser(int id);
 
-    // Notification (Benachrichtigung) Operations
-    void getNotifications();
-
-    // Building (Gebäude) Operations
-    void getBuildings();
+    std::optional<std::string> getTableRowsAsJson(const std::string& tableName);
 
 private:
     MYSQL* conn;
