@@ -4,8 +4,10 @@
 #include <memory>
 #include <iostream>
 #include <exception>
+#include <thread>
 #include "./database/Database.h"  // Deine Datenbankklasse
 #include "./controllers/HttpController.h"  // Der Controller für HTTP-Anfragen (CRUD-Operationen)
+#include "./mqtt/MqttClient.h"
 
 namespace net = boost::asio;
 namespace beast = boost::beast;
@@ -177,11 +179,22 @@ int main() {
         // Datenbankverbindung erstellen
         Database db("127.0.0.1", "dashboard_user", "MeinSicheresPasswort123!", "energiedashboard");
 
+        // MQTT-Listener parallel zum HTTP-Server starten
+        MqttClient mqttClient(db);
+        std::thread mqttThread([&mqttClient]() {
+            mqttClient.startListening();
+        });
+
         // Listener für den HTTP-Server starten
         auto listener = std::make_shared<Listener>(ioc, tcp::endpoint{address, port}, db);
         listener->run();
 
         ioc.run();  // Event Loop starten, um Anfragen zu bearbeiten
+
+        mqttClient.stopListening();
+        if (mqttThread.joinable()) {
+            mqttThread.join();
+        }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
     }
