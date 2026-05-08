@@ -4,6 +4,8 @@
 
 #include <ctime>
 #include <functional>
+#include <iomanip>
+#include <openssl/sha.h>
 #include <random>
 #include <sstream>
 #include <string>
@@ -127,15 +129,21 @@ std::string generateSalt() {
     return salt;
 }
 
-std::string weakHash(const std::string& value) {
+std::string sha256Hash(const std::string& value) {
+    unsigned char digest[SHA256_DIGEST_LENGTH];
+    SHA256(reinterpret_cast<const unsigned char*>(value.data()), value.size(), digest);
+
     std::ostringstream out;
-    out << std::hex << std::hash<std::string>{}(value);
+    out << std::hex << std::setfill('0');
+    for (unsigned char byte : digest) {
+        out << std::setw(2) << static_cast<int>(byte);
+    }
     return out.str();
 }
 
 std::string buildPasswordRecord(const std::string& plainPassword) {
     const std::string salt = generateSalt();
-    return salt + "$" + weakHash(salt + plainPassword);
+    return salt + "$" + sha256Hash(salt + plainPassword);
 }
 
 bool verifyPassword(const std::string& plainPassword, const std::string& record) {
@@ -146,14 +154,14 @@ bool verifyPassword(const std::string& plainPassword, const std::string& record)
 
     const std::string salt = record.substr(0, delimiterPosition);
     const std::string hash = record.substr(delimiterPosition + 1);
-    return weakHash(salt + plainPassword) == hash;
+    return sha256Hash(salt + plainPassword) == hash;
 }
 
-std::string issueToken(const UserAuthRecord& user) {
+std::string issueSessionToken(const UserAuthRecord& user) {
     const std::time_t currentTime = std::time(nullptr);
     const std::string payload =
         std::to_string(user.userId) + ":" + user.email + ":" + std::to_string(currentTime);
-    return "tok_" + weakHash(payload + generateSalt());
+    return "sess_" + sha256Hash(payload + generateSalt());
 }
 
 void writeJsonResponse(http::response<http::string_body>& res,
@@ -290,7 +298,7 @@ void HttpController::handleLogin(http::request<http::string_body>& req,
     writeJsonResponse(
         res,
         http::status::ok,
-        "{\"message\":\"login successful\",\"token\":\"" + issueToken(user.value()) +
+        "{\"message\":\"login successful\",\"session_token\":\"" + issueSessionToken(user.value()) +
             "\",\"benutzer_id\":" + std::to_string(user->userId) +
             ",\"name\":\"" + escapeJson(user->name) +
             "\",\"email\":\"" + escapeJson(user->email) + "\"}");
