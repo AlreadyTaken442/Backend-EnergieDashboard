@@ -10,6 +10,7 @@ find_package(Boost REQUIRED COMPONENTS system)
 
 # 2. Threads finden (Zwingend für Boost Asio/Beast)
 find_package(Threads REQUIRED)
+find_package(OpenSSL REQUIRED)
 
 # 3. MySQL Konfiguration
 # Versuche, die MySQL-Clientbibliothek (libmysqlclient) automatisch zu finden.
@@ -57,6 +58,7 @@ target_include_directories(Backend-EnergieDashboard PRIVATE
 target_link_libraries(Backend-EnergieDashboard PRIVATE
     Boost::system
     Threads::Threads
+    OpenSSL::Crypto
     ${MYSQL_LIBRARIES}
     dl    # Wird oft von mysqlclient benötigt
     m     # Math library
